@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoxLock Prototype</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background: #1a1a1a; color: #fff; text-align: center; }
+        #video, #canvas { border: 2px solid #00ffff; margin: 10px; }
+        #status { font-size: 18px; color: #00ffff; }
+        button { background: #ff00ff; color: white; padding: 10px 20px; border: none; cursor: pointer; font-size: 16px; }
+    </style>
+</head>
+<body>
+    <h1>VoxLock: AI Voice Isolation</h1>
+    <video id="video" width="640" height="480" autoplay playsinline></video>
+    <canvas id="canvas" width="640" height="480"></canvas>
+    <br>
+    <button id="startBtn">Start VoxLock (Auto-Mode)</button>
+    <div id="status">Ready - Click to start camera & mic</div>
+    <audio id="audioOutput" autoplay></audio> <!-- Streams to earbuds -->
+    <script src="script.js"></script>
+</body>
+</html>
