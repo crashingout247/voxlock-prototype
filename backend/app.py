@@ -9,55 +9,26 @@ import wave
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/')
-def home():
-    return jsonify({
-        "message": "Voice + Video Processing Backend is running!",
-        "endpoints": {
-            "/process": "POST - Send base64 frame & get isolated audio (prototype)"
-        },
-        "status": "ok"
-    })
-
 @app.route('/process', methods=['POST'])
 def process():
-    try:
-        data = request.json['frame']
-        
-        if ',' in data:
-            img_data = base64.b64decode(data.split(',')[1])
-        else:
-            img_data = base64.b64decode(data)
+    data = request.json['frame']
+    img_data = base64.b64decode(data.split(',')[1])
+    nparr = np.frombuffer(img_data, np.uint8)
+    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-        nparr = np.frombuffer(img_data, np.uint8)
-        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        if frame is None:
-            return jsonify({"error": "Invalid image data"}), 400
+    y = np.random.rand(16000).astype(np.int16)  # Mock audio
+    high_pass = np.diff(y, prepend=0)  # Noise reduction
+    buffer = BytesIO()
+    with wave.open(buffer, 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(16000)
+        wf.writeframes(high_pass.tobytes())
+    isolated_audio = base64.b64encode(buffer.getvalue()).decode()
 
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        sample_rate = 16000
-        y = np.random.rand(sample_rate).astype(np.float32)
-        y = (y * 32767).astype(np.int16)
-        high_pass = np.diff(y, prepend=y[0])
-
-        buffer = BytesIO()
-        with wave.open(buffer, 'wb') as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(sample_rate)
-            wf.writeframes(high_pass.tobytes())
-
-        isolated_audio_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-
-        return jsonify({
-            'status': 'success',
-            'isolated_audio': f"data:audio/wav;base64,{isolated_audio_base64}"
-        })
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return jsonify({'isolated_audio': isolated_audio})
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000, host='0.0.0.0')
+    app.run(debug=True, port=5000)
