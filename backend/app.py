@@ -7,28 +7,71 @@ import cv2
 import wave
 
 app = Flask(__name__)
-CORS(app)
+CORS(app)  # Allow frontend from different origin/port to call this backend
 
+# Root route so http://127.0.0.1:5000 shows something useful (no more 404)
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({
+        "message": "Voice + Video Processing Backend is running!",
+        "endpoints": {
+            "/process": "POST - Send base64 frame & get isolated audio (prototype)"
+        },
+        "status": "ok"
+    })
+
+# Main processing endpoint (expects base64 image frame from frontend)
 @app.route('/process', methods=['POST'])
 def process():
-    data = request.json['frame']
-    img_data = base64.b64decode(data.split(',')[1])
-    nparr = np.frombuffer(img_data, np.uint8)
-    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    try:
+        # Get base64 data from JSON body
+        data = request.json['frame']
 
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # Remove data URL prefix if present (data:image/jpeg;base64,...)
+        if ',' in data:
+            img_data = base64.b64decode(data.split(',')[1])
+        else:
+            img_data = base64.b64decode(data)
 
-    y = np.random.rand(16000).astype(np.int16)  # Mock audio
-    high_pass = np.diff(y, prepend=0)  # Noise reduction
-    buffer = BytesIO()
-    with wave.open(buffer, 'wb') as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(16000)
-        wf.writeframes(high_pass.tobytes())
-    isolated_audio = base64.b64encode(buffer.getvalue()).decode()
+        # Convert to OpenCV image
+        nparr = np.frombuffer(img_data, np.uint8)
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-    return jsonify({'isolated_audio': isolated_audio})
+        if frame is None:
+            return jsonify({"error": "Invalid image data"}), 400
+
+        # Placeholder: Basic image processing (e.g. grayscale)
+        # Later: add lip/face detection to guide voice separation
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # Mock audio generation (replace this with real Asteroid model later)
+        sample_rate = 16000
+        y = np.random.rand(sample_rate).astype(np.float32)  # random noise
+        y = (y * 32767).astype(np.int16)                    # to 16-bit
+
+        # Simple high-pass filter (basic noise reduction simulation)
+        high_pass = np.diff(y, prepend=y[0])
+
+        # Create WAV in memory
+        buffer = BytesIO()
+        with wave.open(buffer, 'wb') as wf:
+            wf.setnchannels(1)          # mono
+            wf.setsampwidth(2)          # 16-bit
+            wf.setframerate(sample_rate)
+            wf.writeframes(high_pass.tobytes())
+
+        # Encode to base64 string
+        isolated_audio_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+        return jsonify({
+            'status': 'success',
+            'isolated_audio': f"data:audio/wav;base64,{isolated_audio_base64}"
+            # You can add more: e.g. "lip_detected": True, "confidence": 0.85
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5000, host='0.0.0.0')  # host='0.0.0.0' allows network access if needed
