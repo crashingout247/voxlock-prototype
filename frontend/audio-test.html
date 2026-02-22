@@ -1,0 +1,91 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoxLock Prototype</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background: #1a1a1a; color: #fff; text-align: center; }
+        #video, #canvas { border: 2px solid #00ffff; margin: 10px; }
+        #status { font-size: 18px; color: #00ffff; }
+        button { background: #ff00ff; color: white; padding: 10px 20px; border: none; cursor: pointer; font-size: 16px; }
+    </style>
+</head>
+<body>
+    <h1>VoxLock: AI Voice Isolation</h1>
+    <video id="video" width="640" height="480" autoplay playsinline></video>
+    <canvas id="canvas" width="640" height="480"></canvas>
+    <br>
+    <button id="startBtn">Start VoxLock (Auto-Mode)</button>
+    <div id="status">Ready - Click to start camera & mic</div>
+    <audio id="audioOutput" autoplay></audio> <!-- Streams to earbuds -->
+    <script src="script.js"></script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VoxLock Audio Test</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script> <!-- for WebSocket -->
+</head>
+<body>
+  <h1>Audio Streaming Test</h1>
+  <button id="startBtn">Start Mic</button>
+  <button id="stopBtn" disabled>Stop</button>
+  <p id="status">Status: Idle</p>
+
+  <script>
+    const socket = io('http://127.0.0.1:5000'); // connect to your Flask backend
+
+    let mediaRecorder;
+    let audioChunks = [];
+    const status = document.getElementById('status');
+
+    document.getElementById('startBtn').onclick = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+        mediaRecorder.ondataavailable = (e) => {
+          audioChunks.push(e.data);
+          // Send chunk to backend every ~500ms
+          if (audioChunks.length > 0) {
+            const blob = new Blob(audioChunks, { type: 'audio/webm' });
+            blob.arrayBuffer().then(buffer => {
+              socket.emit('audio_chunk', buffer); // send raw audio buffer
+            });
+            audioChunks = []; // clear for next chunk
+          }
+        };
+
+        mediaRecorder.start(500); // create chunk every 500ms
+        status.textContent = 'Status: Recording & Streaming...';
+        document.getElementById('startBtn').disabled = true;
+        document.getElementById('stopBtn').disabled = false;
+      } catch (err) {
+        status.textContent = 'Error: ' + err.message;
+      }
+    };
+
+    document.getElementById('stopBtn').onclick = () => {
+      mediaRecorder.stop();
+      mediaRecorder.stream.getTracks().forEach(track => track.stop());
+      status.textContent = 'Status: Stopped';
+      document.getElementById('startBtn').disabled = false;
+      document.getElementById('stopBtn').disabled = true;
+    };
+
+    // Receive cleaned audio from backend
+    socket.on('cleaned_audio', (data) => {
+      const audioBlob = new Blob([new Uint8Array(data)], { type: 'audio/wav' });
+      const audioUrl = URL.createObjectURL(audioBlob);
+      new Audio(audioUrl).play(); // play immediately
+      console.log('Playing cleaned chunk!');
+    });
+  </script>
+</body>
+</html>

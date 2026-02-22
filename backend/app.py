@@ -75,3 +75,17 @@ def process():
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000, host='0.0.0.0')  # host='0.0.0.0' allows network access if needed
+    from flask_socketio import SocketIO, emit
+
+socketio = SocketIO(app)
+
+@socketio.on('audio_chunk')
+def handle_audio_chunk(data):
+    # data is raw audio bytes from frontend
+    print("Received audio chunk:", len(data), "bytes")
+    # TODO: process with model, send back cleaned
+    cleaned = data  # placeholder
+    emit('cleaned_audio', cleaned)  # send back to frontend
+
+if __name__ == '__main__':
+    socketio.run(app, debug=True, port=5000, host='0.0.0.0')
