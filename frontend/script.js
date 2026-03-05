@@ -169,3 +169,53 @@ startBtn.addEventListener('click', async () => {
         statusDiv.textContent = 'Running - Auto Mode: Detecting lips + voice...';
     }
 });
+
+document.addEventListener('DOMContentLoaded', function () {
+    // Connect to backend Socket.IO server
+    const socket = io('http://127.0.0.1:5000');  // change to your Mac's IP if coworker connects remotely
+
+    // When connected
+    socket.on('connect', function () {
+        console.log('Connected to VoxLock backend!');
+        document.getElementById('status').innerText = 'Connected!';
+    });
+
+    // Receive message from server
+    socket.on('message', function (msg) {
+        console.log('Server message:', msg.data);
+        addMessageToChat('Server', msg.data);
+    });
+
+    // Receive real-time transcription from backend
+    socket.on('transcription', function (data) {
+        console.log('Transcription received:', data.text);
+        addMessageToChat('Transcription', data.text);
+    });
+
+    // Handle disconnect
+    socket.on('disconnect', function () {
+        console.log('Disconnected from backend');
+        document.getElementById('status').innerText = 'Disconnected';
+    });
+
+    // Example: Send a test message from frontend
+    document.getElementById('send-btn')?.addEventListener('click', function () {
+        const input = document.getElementById('message-input');
+        if (input && input.value) {
+            socket.emit('message', input.value);
+            addMessageToChat('You', input.value);
+            input.value = '';
+        }
+    });
+
+    // Helper: Add message to chat UI
+    function addMessageToChat(sender, text) {
+        const chatBox = document.getElementById('chat-box');
+        if (chatBox) {
+            const msgDiv = document.createElement('div');
+            msgDiv.innerHTML = `<strong>${sender}:</strong> ${text}`;
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    }
+});
