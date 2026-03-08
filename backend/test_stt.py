@@ -2,18 +2,18 @@ import speech_recognition as sr
 
 r = sr.Recognizer()
 
-print("Say something... (speak for 5 seconds)")
+print("Say a short sentence now...")
 with sr.Microphone() as source:
-    r.adjust_for_ambient_noise(source, duration=1)  # ← helps with background noise
-    audio = r.listen(source, timeout=6, phrase_time_limit=8)
+    r.adjust_for_ambient_noise(source, duration=1)
+    audio = r.listen(source, timeout=5, phrase_time_limit=8)
 
 try:
     print("Sending to Google...")
     text = r.recognize_google(audio)
     print("You said:", text)
 except sr.UnknownValueError:
-    print("Google could not understand audio")
+    print("Google couldn't understand")
 except sr.RequestError as e:
-    print(f"Google API request failed: {e}")
+    print(f"Google API error: {e}")
 except Exception as e:
-    print(f"Unexpected error: {type(e).__name__} - {e}")
+    print(f"Error: {e}")

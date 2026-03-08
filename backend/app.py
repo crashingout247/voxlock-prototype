@@ -1,38 +1,40 @@
 from flask import Flask, render_template
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
+import threading
 
 app = Flask(__name__)
-
-# Enable CORS (allow frontend to connect)
 CORS(app, resources={r"/*": {"origins": "*"}})
-
-# Initialize Socket.IO
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
-# Home route - serves index.html from templates/
-@app.route('/')
-def home():
-    return render_template('index.html')
-
-# Socket.IO connection event
 @socketio.on('connect')
 def handle_connect():
     print('Client connected via Socket.IO')
     emit('message', {'data': 'Connected to VoxLock backend!'})
 
-# Echo test message
 @socketio.on('message')
 def handle_message(data):
     print('Received message:', data)
     emit('message', {'data': f'Echo: {data}'}, broadcast=True)
 
-# Function to send transcription (call this from audio_processing.py)
 def broadcast_transcription(text):
     socketio.emit('transcription', {'text': text})
-    print(f"Broadcast transcription: {text}")
+    print(f"[Broadcast] Sent to frontend: {text}")
 
-# Run the app with Socket.IO
+@app.route('/')
+def home():
+    return render_template('index.html')
+
 if __name__ == '__main__':
-    print("Starting VoxLock backend with Socket.IO...")
+    print("Starting VoxLock backend...")
+
+    # Import listener AFTER Flask setup (avoids blocking during import)
+    from audio_processing import start_listening
+
+    # Start audio listener in background
+    listener_thread = threading.Thread(target=start_listening, daemon=True)
+    listener_thread.start()
+
+    print("Audio listener started in background thread")
+
     socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)
