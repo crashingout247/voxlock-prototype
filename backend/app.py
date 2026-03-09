@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from flask import Flask, render_template
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
@@ -14,12 +15,13 @@ def handle_connect():
 
 @socketio.on('message')
 def handle_message(data):
-    print('Received message:', data)
-    emit('message', {'data': f'Echo: {data}'}, broadcast=True)
+    print('Received message from client: ' + str(data))
+    emit('message', {'data': 'Echo: ' + str(data)})
 
 def broadcast_transcription(text):
-    socketio.emit('transcription', {'text': text})
-    print(f"[Broadcast] Sent to frontend: {text}")
+    print("Emitting 'transcription' event with text: " + str(text))
+    socketio.emit('transcription', {'text': text})  # ← NO broadcast keyword
+    print("[Broadcast] Sent to all clients: " + str(text))
 
 @app.route('/')
 def home():
@@ -27,14 +29,8 @@ def home():
 
 if __name__ == '__main__':
     print("Starting VoxLock backend...")
-
-    # Import listener AFTER Flask setup (avoids blocking during import)
     from audio_processing import start_listening
-
-    # Start audio listener in background
-    listener_thread = threading.Thread(target=start_listening, daemon=True)
+    listener_thread = threading.Thread(target=start_listening, args=(socketio,), daemon=True)
     listener_thread.start()
-
     print("Audio listener started in background thread")
-
     socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)

@@ -1,3 +1,8 @@
+# Remove this line completely:
+# from app import broadcast_transcription
+
+# Change the emit line inside try block to:
+socketio.emit('transcription', {'text': text}, broadcast=True, namespace='/')
 import numpy as np
 import torch
 import pyaudio
@@ -6,21 +11,20 @@ import io
 import wave
 import threading
 import queue
+import base64
 
 # CONFIG
 MIC_RATE = 48000
 MODEL_RATE = 16000
 CHUNK_48K = 1536
-SILENCE_LIMIT = 5  # Increased so sentences are longer → better STT
+SILENCE_LIMIT = 5
 VAD_THRESHOLD = 0.25
 
-# Load VAD (no denoiser for now - simplifies testing)
 print("Loading Silero VAD...")
 vad_model, _ = torch.hub.load('snakers4/silero-vad', 'silero_vad', force_reload=False, trust_repo=True)
 
 r = sr.Recognizer()
 
-# State
 processing_queue = queue.Queue()
 sentence_buffer = []
 is_recording = False
@@ -33,12 +37,12 @@ def ai_worker():
             print("[Worker] Stopped.")
             break
 
-        print(f"[Worker] Received {len(full_audio)} samples (raw audio)")
+        print(f"[Worker] Received {len(full_audio)} samples")
 
-        # Use RAW audio (no denoise/sharpen) to test if Google likes it
+        # Raw audio for STT (no denoise for simplicity)
         raw_audio = full_audio
 
-        # Create WAV
+        # Create WAV for STT
         byte_io = io.BytesIO()
         with wave.open(byte_io, 'wb') as wav_file:
             wav_file.setnchannels(1)
@@ -48,45 +52,51 @@ def ai_worker():
             wav_file.writeframes(int_data.tobytes())
 
         byte_io.seek(0)
-        print("[Worker] WAV created (raw)")
+        print("[Worker] WAV ready")
 
-        # STT
+               # STT
         with sr.AudioFile(byte_io) as source:
             try:
-                print("[STT] Reading raw buffer...")
+                print("[STT] Reading buffer...")
                 audio_data = r.record(source)
-                print(f"[STT] Buffer read OK, frame length: {len(audio_data.frame_data)} bytes")
+                print("[STT] Buffer read OK, frame length:", len(audio_data.frame_data))
                 print("[STT] Calling Google...")
                 text = r.recognize_google(audio_data)
-                print(f"[STT] Success: {text}")
+                print(f"[STT] Success: '{text}'")
                 from app import broadcast_transcription
                 broadcast_transcription(text)
-            except sr.UnknownValueError:
-                print("[STT] UnknownValueError - Google didn't recognize (too quiet/short/no speech?)")
+            except sr.UnknownValueError as e:
+                print("[STT] Google could not understand audio (UnknownValueError)")
+                print("Details:", str(e))
             except sr.RequestError as e:
-                print(f"[STT] RequestError: {e}")
+                print("[STT] Google request failed (RequestError):", str(e))
+            except sr.WaitTimeoutError as e:
+                print("[STT] Timeout waiting for audio (WaitTimeoutError):", str(e))
             except Exception as e:
-                print(f"[STT] Error: {type(e).__name__} - {str(e)}")
+                print("[STT] Unexpected error during STT:")
+                print(type(e).__name__, ":", str(e))
+                import traceback
+                traceback.print_exc()
             finally:
                 print("[STT] Attempt finished")
 
         processing_queue.task_done()
 
-# Start worker once
 threading.Thread(target=ai_worker, daemon=True).start()
 
-# Listener function (called from app.py)
-def start_listening():
-    print("Background listener starting...")
+def start_listening(socketio_instance):
+    global socketio
+    socketio = socketio_instance
+    print("Starting listener...")
     p = pyaudio.PyAudio()
 
-    print("\nMics:")
+    print("\nAvailable mics:")
     for i in range(p.get_device_count()):
         dev = p.get_device_info_by_index(i)
         if dev['maxInputChannels'] > 0:
             print(f"  [{i}] {dev['name']}")
 
-    DEVICE_INDEX = 0  # CHANGE IF NEEDED!
+    DEVICE_INDEX = 0  # CHANGE IF NEEDED
 
     print(f"\nUsing [{DEVICE_INDEX}] {p.get_device_info_by_index(DEVICE_INDEX)['name']}\n")
 
@@ -103,11 +113,17 @@ def start_listening():
 
     global is_recording, silence_counter, sentence_buffer
 
+    GAIN = 5.0  # Adjust if needed
+
     try:
         while True:
             data = stream_in.read(CHUNK_48K, exception_on_overflow=False)
+            socketio.emit('transcription', {'text': text}, broadcast=True, namespace='/')
 
             audio_16k = np.frombuffer(data, dtype=np.float32)[::3].copy()
+
+            audio_16k *= GAIN
+            audio_16k = np.clip(audio_16k, -1.0, 1.0)
 
             max_amp = np.max(np.abs(audio_16k))
             print(f"Chunk | amp: {max_amp:.6f}")
@@ -119,11 +135,11 @@ def start_listening():
 
             if speech_prob > VAD_THRESHOLD:
                 is_recording = True
-                sentence_buffer.append(audio_16k)
+                sentence_buffer.append(audio_16k / GAIN)
                 silence_counter = 0
                 print("→ Detected! Recording...")
             elif is_recording:
-                sentence_buffer.append(audio_16k)
+                sentence_buffer.append(audio_16k / GAIN)
                 silence_counter += 1
                 print(f"Silence: {silence_counter}/{SILENCE_LIMIT}")
 
