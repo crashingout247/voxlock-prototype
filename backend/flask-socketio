@@ -1,2 +1,0 @@
-conda activate voxlock
-pip install flask-socketio eventlet  # or gevent
