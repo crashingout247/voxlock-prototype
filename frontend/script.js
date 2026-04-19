@@ -19,7 +19,7 @@ let latestHandResults = null;
 let drawTrigger = "none"; 
 
 // ==================== Socket.IO Setup ====================
-const socket = io('http://127.0.0.1:8080');
+const socket = io();
 
 socket.on('connect', () => { console.log('Connected to AI Backend!'); });
 
