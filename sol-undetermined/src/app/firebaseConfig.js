@@ -2,16 +2,13 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyD6IxYWc_fDeGpQmX2fqEenUuvCgj8OUHQ",
-  authDomain: "sol-undetermined.firebaseapp.com",
-  projectId: "sol-undetermined",
-  storageBucket: "sol-undetermined.firebasestorage.app",
-  messagingSenderId: "687754779669",
-  appId: "1:687754779669:web:c74836142f0ec488bf021c",
-  measurementId: "G-2DKDQVNHT1"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
 const app = initializeApp(firebaseConfig);
-
-// THIS IS THE EXACT LINE NEXT.JS IS LOOKING FOR:
 export const db = getFirestore(app);
